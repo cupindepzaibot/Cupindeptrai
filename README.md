@@ -1,0 +1,1 @@
+Hello các đồng chí
