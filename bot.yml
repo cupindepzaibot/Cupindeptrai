@@ -93,7 +93,6 @@ async def show_purchase_history(update: Update, context: ContextTypes.DEFAULT_TY
 async def main() -> None:
     # Tạo ứng dụng bot
     application = ApplicationBuilder().token('YOUR_BOT_TOKEN').build()
-
     # Đăng ký các handler cho bot
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('help', help_command))
