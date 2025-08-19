@@ -12,45 +12,45 @@ from telegram.ext import (
     filters
 )
 
-# 🛠️ Cấu hình
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID", "123456789"))  # Thay bằng Telegram ID thật của bạn
+# 🛠️ Cấu hình: Ghi trực tiếp admin ID của bạn
+BOT_TOKEN = os.getenv("BOT_TOKEN")  # ⚠️ Đặt BOT_TOKEN trong biến môi trường hoặc thay trực tiếp
+ADMIN_ID = 7903231043               # ✅ Đây là Telegram ID của bạn
 
-# 📂 File lưu trạng thái phản hồi
+# 📂 File lưu trạng thái admin đang trả lời ai
 REPLY_FILE = "reply_targets.json"
 
-# 🧠 Load trạng thái reply
+# 🧠 Load trạng thái reply từ file
 def load_reply_targets():
     if os.path.exists(REPLY_FILE):
         with open(REPLY_FILE, "r") as f:
             return json.load(f)
     return {}
 
-# 💾 Save trạng thái reply
+# 💾 Lưu trạng thái reply vào file
 def save_reply_targets(data):
     with open(REPLY_FILE, "w") as f:
         json.dump(data, f)
 
-# 🧾 Lưu log tin nhắn
+# 🧾 Ghi log tin nhắn vào CSV
 def log_message(user_id, username, message):
     with open("messages_log.csv", "a", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
         writer.writerow([datetime.now().isoformat(), user_id, username, message])
 
-# ✅ Xử lý lệnh /start
+# ✅ Lệnh /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Xin chào! Gửi mình tin nhắn gì đó nhé.")
 
-# ✅ Xử lý tin nhắn từ người dùng
+# ✅ Khi người dùng nhắn tin cho bot
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     username = update.message.from_user.username or "Không có username"
     message = update.message.text
 
-    # Trả lời người dùng
+    # Trả lời người gửi
     await update.message.reply_text("✅ Đã nhận tin nhắn của bạn!")
 
-    # Gửi về admin
+    # Gửi nội dung về admin
     admin_text = f"📩 Tin nhắn từ @{username} (ID: {user_id}):\n\n{message}"
 
     # Nút trả lời lại
@@ -60,10 +60,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_message(chat_id=ADMIN_ID, text=admin_text, reply_markup=keyboard)
 
-    # Ghi log
+    # Lưu log
     log_message(user_id, username, message)
 
-# ✅ Xử lý khi admin nhấn nút "Trả lời lại"
+# ✅ Khi admin bấm nút "Trả lời lại"
 async def reply_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -73,14 +73,14 @@ async def reply_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_user_id = int(data.split(":")[1])
         admin_id = query.from_user.id
 
-        # Lưu trạng thái admin đang trả lời cho ai
+        # Lưu trạng thái trả lời
         reply_targets = load_reply_targets()
         reply_targets[str(admin_id)] = target_user_id
         save_reply_targets(reply_targets)
 
         await query.message.reply_text("💬 Nhập nội dung bạn muốn gửi cho người dùng này:")
 
-# ✅ Xử lý tin nhắn phản hồi từ admin
+# ✅ Khi admin gửi nội dung phản hồi
 async def handle_admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     admin_id = update.message.from_user.id
     reply_targets = load_reply_targets()
@@ -99,10 +99,10 @@ async def handle_admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE)
     else:
         await update.message.reply_text("⚠️ Bạn chưa chọn người dùng để trả lời.")
 
-# ✅ Main app
+# ✅ Chạy bot
 if __name__ == '__main__':
     if not BOT_TOKEN:
-        print("⚠️ BOT_TOKEN chưa được thiết lập.")
+        print("⚠️ BOT_TOKEN chưa được thiết lập. Bạn có thể ghi trực tiếp token vào BOT_TOKEN nếu cần.")
         exit(1)
 
     app = ApplicationBuilder().token(BOT_TOKEN).build()
