@@ -1,6 +1,5 @@
 import os
 import csv
-import json
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -12,105 +11,99 @@ from telegram.ext import (
     filters
 )
 
-# 🛠️ Cấu hình: Ghi trực tiếp admin ID của bạn
-BOT_TOKEN = os.getenv("BOT_TOKEN")  # ⚠️ Đặt BOT_TOKEN trong biến môi trường hoặc thay trực tiếp
-ADMIN_ID = 7903231043               # ✅ Đây là Telegram ID của bạn
+# Tạo các tệp tin cần thiết (CSV) nếu chưa có
+DATA_FILE = "users_data.csv"
 
-# 📂 File lưu trạng thái admin đang trả lời ai
-REPLY_FILE = "reply_targets.json"
-
-# 🧠 Load trạng thái reply từ file
-def load_reply_targets():
-    if os.path.exists(REPLY_FILE):
-        with open(REPLY_FILE, "r") as f:
-            return json.load(f)
-    return {}
-
-# 💾 Lưu trạng thái reply vào file
-def save_reply_targets(data):
-    with open(REPLY_FILE, "w") as f:
-        json.dump(data, f)
-
-# 🧾 Ghi log tin nhắn vào CSV
-def log_message(user_id, username, message):
-    with open("messages_log.csv", "a", newline="", encoding="utf-8") as file:
+# Hàm thêm người dùng vào file CSV
+def add_user_to_csv(user_id, username):
+    if not os.path.exists(DATA_FILE):
+        # Tạo tệp mới và thêm header nếu không tồn tại
+        with open(DATA_FILE, mode='w', newline='', encoding='utf-8') as file:
+            writer = csv.writer(file)
+            writer.writerow(["User ID", "Username", "Timestamp"])
+    
+    # Thêm thông tin người dùng vào file CSV
+    with open(DATA_FILE, mode='a', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
-        writer.writerow([datetime.now().isoformat(), user_id, username, message])
+        writer.writerow([user_id, username, datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
 
-# ✅ Lệnh /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Xin chào! Gửi mình tin nhắn gì đó nhé.")
-
-# ✅ Khi người dùng nhắn tin cho bot
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# Hàm xử lý lệnh /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.message.from_user.id
-    username = update.message.from_user.username or "Không có username"
-    message = update.message.text
+    username = update.message.from_user.username
+    
+    # Lưu thông tin người dùng vào CSV
+    add_user_to_csv(user_id, username)
 
-    # Trả lời người gửi
-    await update.message.reply_text("✅ Đã nhận tin nhắn của bạn!")
+    # Tạo bàn phím inline
+    keyboard = [
+        [InlineKeyboardButton("🛒 Mua sản phẩm", callback_data='buy')],
+        [InlineKeyboardButton("📄 Lịch sử mua hàng", callback_data='history')],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # Gửi nội dung về admin
-    admin_text = f"📩 Tin nhắn từ @{username} (ID: {user_id}):\n\n{message}"
+    # Gửi tin nhắn chào mừng
+    await update.message.reply_text(
+        f"Chào <b>{username}</b>! Chúc bạn có những trải nghiệm tuyệt vời.\n\nChọn một trong các tùy chọn dưới đây:",
+        reply_markup=reply_markup,
+        parse_mode='HTML'
+    )
 
-    # Nút trả lời lại
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔁 Trả lời lại", callback_data=f"reply_to:{user_id}")]
-    ])
+# Hàm xử lý lệnh /help
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text("Đây là bot mẫu. Sử dụng các lệnh sau:\n/start - Bắt đầu sử dụng bot.\n/help - Hướng dẫn sử dụng.")
 
-    await context.bot.send_message(chat_id=ADMIN_ID, text=admin_text, reply_markup=keyboard)
-
-    # Lưu log
-    log_message(user_id, username, message)
-
-# ✅ Khi admin bấm nút "Trả lời lại"
-async def reply_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# Hàm xử lý hành động từ InlineKeyboard
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    await query.answer()
+    await query.answer()  # Trả lời callback query
 
-    data = query.data
-    if data.startswith("reply_to:"):
-        target_user_id = int(data.split(":")[1])
-        admin_id = query.from_user.id
+    if query.data == 'buy':
+        # Tùy chỉnh hành động khi người dùng chọn "Mua sản phẩm"
+        await query.edit_message_text(text="🛒 Bạn đã chọn mua sản phẩm.")
+    elif query.data == 'history':
+        # Tùy chỉnh hành động khi người dùng chọn "Lịch sử mua hàng"
+        await query.edit_message_text(text="📜 Đây là lịch sử mua hàng của bạn.")
 
-        # Lưu trạng thái trả lời
-        reply_targets = load_reply_targets()
-        reply_targets[str(admin_id)] = target_user_id
-        save_reply_targets(reply_targets)
+# Hàm đọc lịch sử mua hàng từ file CSV
+def get_purchase_history(user_id):
+    history = []
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, mode='r', newline='', encoding='utf-8') as file:
+            reader = csv.reader(file)
+            for row in reader:
+                if row[0] == str(user_id):  # Kiểm tra ID người dùng
+                    history.append(row)
+    return history
 
-        await query.message.reply_text("💬 Nhập nội dung bạn muốn gửi cho người dùng này:")
-
-# ✅ Khi admin gửi nội dung phản hồi
-async def handle_admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    admin_id = update.message.from_user.id
-    reply_targets = load_reply_targets()
-
-    if str(admin_id) in reply_targets:
-        target_user_id = reply_targets.pop(str(admin_id))
-        save_reply_targets(reply_targets)
-
-        message = update.message.text
-
-        try:
-            await context.bot.send_message(chat_id=target_user_id, text=f"📬 Phản hồi từ admin:\n\n{message}")
-            await update.message.reply_text("✅ Đã gửi phản hồi đến người dùng.")
-        except Exception as e:
-            await update.message.reply_text(f"❌ Không gửi được tin nhắn: {e}")
+# Hàm hiển thị lịch sử mua hàng
+async def show_purchase_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.message.from_user.id
+    history = get_purchase_history(user_id)
+    if history:
+        message = "📜 Lịch sử mua hàng của bạn:\n"
+        for record in history:
+            message += f"Thời gian: {record[2]}\nSản phẩm: {record[1]}\n---\n"
     else:
-        await update.message.reply_text("⚠️ Bạn chưa chọn người dùng để trả lời.")
+        message = "Bạn chưa có lịch sử mua hàng."
 
-# ✅ Chạy bot
+    await update.message.reply_text(message)
+
+# Main function để cấu hình và chạy bot
+async def main() -> None:
+    # Tạo ứng dụng bot
+    application = ApplicationBuilder().token('YOUR_BOT_TOKEN').build()
+
+    # Đăng ký các handler cho bot
+    application.add_handler(CommandHandler('start', start))
+    application.add_handler(CommandHandler('help', help_command))
+    application.add_handler(CallbackQueryHandler(button))
+    application.add_handler(MessageHandler(filters.Text, show_purchase_history))
+
+    # Chạy bot
+    await application.run_polling()
+
+# Để chạy bot, gọi hàm main() khi script được chạy
 if __name__ == '__main__':
-    if not BOT_TOKEN:
-        print("⚠️ BOT_TOKEN chưa được thiết lập. Bạn có thể ghi trực tiếp token vào BOT_TOKEN nếu cần.")
-        exit(1)
-
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(reply_button))
-    app.add_handler(MessageHandler(filters.TEXT & filters.USER(ADMIN_ID), handle_admin_reply))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    print("🤖 Bot đang chạy...")
-    app.run_polling()
+    import asyncio
+    asyncio.run(main())
