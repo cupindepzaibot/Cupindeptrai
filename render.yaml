@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: tele-webhook-server
+    env: node
+    rootDir: tele-webhook-server
+    buildCommand: "npm install"
+    startCommand: "npm start"
