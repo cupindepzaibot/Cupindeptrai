@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: tele-webhook-server
+    env: node
+    plan: free
+    buildCommand: cd tele-webhook-server && npm install
+    startCommand: cd tele-webhook-server && npm start
