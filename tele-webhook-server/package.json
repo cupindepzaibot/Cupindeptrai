@@ -1,0 +1,12 @@
+{
+  "name": "tele-webhook-server",
+  "version": "1.0.0",
+  "main": "index.js",
+  "engines": { "node": "18.x" },
+  "scripts": { "start": "node index.js" },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.17.0",
+    "body-parser": "^1.20.2"
+  }
+}
